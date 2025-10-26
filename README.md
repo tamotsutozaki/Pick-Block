@@ -1,5 +1,5 @@
 # Pick Block Storage Access  
-**Versão:** 0.1.0  
+**Versão:** 0.2.0  
 **Minecraft:** 1.20.1  
 **Forge:** 47.2.0  
 **Dependência:** [Tom’s Simple Storage Mod (1.6.8)](https://www.curseforge.com/minecraft/mc-mods/toms-storage)
