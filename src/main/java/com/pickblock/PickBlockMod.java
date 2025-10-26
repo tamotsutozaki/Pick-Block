@@ -28,10 +28,7 @@ import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.registries.RegistryObject;
 import org.slf4j.Logger;
-
 import net.minecraftforge.fml.loading.FMLEnvironment;
-
-
 
 @Mod(PickBlockMod.MODID)
 public class PickBlockMod
@@ -52,11 +49,9 @@ public class PickBlockMod
             .withTabsBefore(CreativeModeTabs.COMBAT)
             .icon(() -> EXAMPLE_ITEM.get().getDefaultInstance())
             .displayItems((parameters, output) -> {
-                output.accept(EXAMPLE_ITEM.get()); // Add the example item to the tab. For your own tabs, this method is preferred over the event
+                output.accept(EXAMPLE_ITEM.get());
             }).build())
     ;
-
-    // metodos abaixo ----------------------------------------------------------------------------------------------------
 
     public PickBlockMod()
     {
@@ -74,12 +69,10 @@ public class PickBlockMod
 
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, Config.SPEC);
 
-        // registra eventos do cliente (mouse/pick)
         if (FMLEnvironment.dist == Dist.CLIENT) {
             com.pickblock.client.ClientEvents.register();
         }
 
-        // inicia o canal de rede (packets)
         com.pickblock.net.Network.init();
 
     }

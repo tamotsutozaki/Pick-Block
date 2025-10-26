@@ -3,13 +3,12 @@ package com.pickblock.net;
 import com.pickblock.PickBlockMod;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.network.NetworkRegistry;
-import net.minecraftforge.network.simple.SimpleChannel; // <- IMPORT CERTO
+import net.minecraftforge.network.simple.SimpleChannel;
 
 public class Network {
 
     private static final String PROTOCOL_VERSION = "1";
 
-    // pode ser final; o canal é imutável após criado
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(PickBlockMod.MODID, "main"),
             () -> PROTOCOL_VERSION,
@@ -21,11 +20,11 @@ public class Network {
 
     public static void init() {
         CHANNEL.registerMessage(
-                id++,                           // id incremental
-                RequestItemPacket.class,        // classe da mensagem
-                RequestItemPacket::encode,      // encoder (FriendlyByteBuf)
-                RequestItemPacket::decode,      // decoder
-                RequestItemPacket::handle       // handler (lado servidor)
+                id++,
+                RequestItemPacket.class,
+                RequestItemPacket::encode,
+                RequestItemPacket::decode,
+                RequestItemPacket::handle
         );
     }
 }

@@ -1,6 +1,5 @@
 package com.pickblock.net;
 
-import com.pickblock.PickBlockMod;
 import com.pickblock.util.InvUtil;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
@@ -10,10 +9,6 @@ import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.items.ItemHandlerHelper;
 import net.minecraftforge.network.NetworkEvent;
-
-import net.minecraft.sounds.SoundEvents;
-import net.minecraft.sounds.SoundSource;
-
 import java.util.function.Supplier;
 
 public class RequestItemPacket {
@@ -39,11 +34,10 @@ public class RequestItemPacket {
             ItemStack prototype = msg.requested.copy();
             if (prototype.isEmpty()) return;
 
-            // 1) Achar o terminal sem fio do Tom's no inventário do jogador
             ItemStack wireless = ItemStack.EMPTY;
             for (ItemStack s : player.getInventory().items) {
                 if (s == null || s.isEmpty()) continue;
-                String cls = s.getItem().getClass().getName(); // ex.: com.tom.storagemod.item.AdvWirelessTerminalItem
+                String cls = s.getItem().getClass().getName();
                 if (cls.equals("com.tom.storagemod.item.AdvWirelessTerminalItem")
                         || cls.equals("com.tom.storagemod.item.WirelessTerminalItem")) {
                     wireless = s;
@@ -56,74 +50,104 @@ public class RequestItemPacket {
                 return;
             }
 
-            // 2) Tentar ler posição linkada do terminal (chaves comuns)
             int linkedX = Integer.MIN_VALUE, linkedY = Integer.MIN_VALUE, linkedZ = Integer.MIN_VALUE;
+            net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level> linkedDimKey = null;
+
             if (wireless.hasTag()) {
                 var tag = wireless.getTag();
-                String[][] candidates = new String[][]{
-                        {"linkPosX","linkPosY","linkPosZ"},
-                        {"linkedPosX","linkedPosY","linkedPosZ"},
-                        {"x","y","z"},
-                        {"posX","posY","posZ"}
-                };
-                outer:
-                for (String[] t : candidates) {
-                    if (tag.contains(t[0]) && tag.contains(t[1]) && tag.contains(t[2])) {
-                        linkedX = tag.getInt(t[0]);
-                        linkedY = tag.getInt(t[1]);
-                        linkedZ = tag.getInt(t[2]);
-                        break outer;
+                if (tag.contains("BindX") && tag.contains("BindY") && tag.contains("BindZ")) {
+                    linkedX = tag.getInt("BindX");
+                    linkedY = tag.getInt("BindY");
+                    linkedZ = tag.getInt("BindZ");
+                }
+                if (tag.contains("BindDim")) {
+                    String dimStr = tag.getString("BindDim");
+                    if (!dimStr.isEmpty()) {
+                        var dimRL = new net.minecraft.resources.ResourceLocation(dimStr);
+                        linkedDimKey = net.minecraft.resources.ResourceKey.create(
+                                net.minecraft.core.registries.Registries.DIMENSION, dimRL
+                        );
                     }
                 }
             }
 
-            // 3) Centro da busca: posição linkada (se achou) ou o jogador
+            net.minecraft.server.level.ServerLevel targetLevel = null;
+            if (linkedDimKey != null && player.getServer() != null) {
+                targetLevel = player.getServer().getLevel(linkedDimKey);
+            }
+            if (targetLevel == null) {
+                targetLevel = player.serverLevel();
+            }
+
             net.minecraft.core.BlockPos center = (linkedX != Integer.MIN_VALUE)
                     ? new net.minecraft.core.BlockPos(linkedX, linkedY, linkedZ)
                     : player.blockPosition();
 
-            // 4) Meta: stack cheio (até 64 ou max do item)
             int want = Math.min(prototype.getMaxStackSize(), 64);
 
-            // 5) Varrer TileEntities com IItemHandler num raio
-            int radius = 24; // ajuste conforme sua base
+            var itemCap = wireless.getCapability(ForgeCapabilities.ITEM_HANDLER, null);
+            IItemHandler remote = itemCap.orElse(null);
+
             int got = 0;
             ItemStack giving = ItemStack.EMPTY;
 
-            var level = player.level();
-            for (int dx = -radius; dx <= radius && got < want; dx++) {
-                for (int dz = -radius; dz <= radius && got < want; dz++) {
-                    for (int dy = -5; dy <= 5 && got < want; dy++) {
-                        var pos = center.offset(dx, dy, dz);
-                        var be = level.getBlockEntity(pos);
-                        if (be == null) continue;
+            if (remote != null) {
+                int slots = remote.getSlots();
+                for (int i = 0; i < slots && got < want; i++) {
+                    ItemStack inSlot = remote.getStackInSlot(i);
+                    if (inSlot.isEmpty()) continue;
+                    if (ItemStack.isSameItemSameTags(inSlot, prototype)) {
+                        int canTake = Math.min(want - got, inSlot.getCount());
+                        if (canTake <= 0) break;
+                        ItemStack extracted = remote.extractItem(i, canTake, false);
+                        if (extracted.isEmpty()) continue;
 
-                        var cap = be.getCapability(ForgeCapabilities.ITEM_HANDLER, null);
-                        IItemHandler handler = cap.orElse(null);
-                        if (handler == null) continue;
+                        if (giving.isEmpty()) {
+                            giving = extracted.copy();
+                        } else if (ItemHandlerHelper.canItemStacksStack(giving, extracted)) {
+                            giving.grow(extracted.getCount());
+                        } else {
+                            InvUtil.giveToHandOrHotbar(player, giving);
+                            giving = extracted.copy();
+                        }
+                        got += extracted.getCount();
+                    }
+                }
+            } else {
+                int radius = 24;
+                var level = targetLevel;
+                for (int dx = -radius; dx <= radius && got < want; dx++) {
+                    for (int dz = -radius; dz <= radius && got < want; dz++) {
+                        for (int dy = -5; dy <= 5 && got < want; dy++) {
+                            var pos = center.offset(dx, dy, dz);
+                            var be = level.getBlockEntity(pos);
+                            if (be == null) continue;
 
-                        int slots = handler.getSlots();
-                        for (int i = 0; i < slots && got < want; i++) {
-                            ItemStack inSlot = handler.getStackInSlot(i);
-                            if (inSlot.isEmpty()) continue;
+                            var cap = be.getCapability(ForgeCapabilities.ITEM_HANDLER, null);
+                            IItemHandler handler = cap.orElse(null);
+                            if (handler == null) continue;
 
-                            // compara item + NBT
-                            if (ItemStack.isSameItemSameTags(inSlot, prototype)) {
-                                int canTake = Math.min(want - got, inSlot.getCount());
-                                if (canTake <= 0) break;
+                            int slots = handler.getSlots();
+                            for (int i = 0; i < slots && got < want; i++) {
+                                ItemStack inSlot = handler.getStackInSlot(i);
+                                if (inSlot.isEmpty()) continue;
 
-                                ItemStack extracted = handler.extractItem(i, canTake, false);
-                                if (extracted.isEmpty()) continue;
+                                if (ItemStack.isSameItemSameTags(inSlot, prototype)) {
+                                    int canTake = Math.min(want - got, inSlot.getCount());
+                                    if (canTake <= 0) break;
+                                    ItemStack extracted = handler.extractItem(i, canTake, false);
+                                    if (extracted.isEmpty()) continue;
 
-                                if (giving.isEmpty()) {
-                                    giving = extracted.copy();
-                                } else if (ItemHandlerHelper.canItemStacksStack(giving, extracted)) {
-                                    giving.grow(extracted.getCount());
-                                } else {
-                                    InvUtil.giveToHandOrHotbar(player, giving);
-                                    giving = extracted.copy();
+                                    if (giving.isEmpty()) {
+                                        giving = extracted.copy();
+                                    } else if (ItemHandlerHelper.canItemStacksStack(giving, extracted)) {
+                                        giving.grow(extracted.getCount());
+                                    } else {
+                                        InvUtil.giveToHandOrHotbar(player, giving);
+                                        giving = extracted.copy();
+                                    }
+                                    got += extracted.getCount();
                                 }
-                                got += extracted.getCount();
                             }
                         }
                     }
@@ -136,21 +160,12 @@ public class RequestItemPacket {
                         Component.literal("Puxado da rede: " + giving.getCount() + "x " + giving.getHoverName().getString()),
                         true
                 );
-
-                // som sutil de "pegar item"
-                player.level().playSound(
-                        null,
-                        player.getX(), player.getY(), player.getZ(),
-                        SoundEvents.ITEM_PICKUP,
-                        SoundSource.PLAYERS,
-                        0.25f,
-                        1.10f
-                );
+                player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
+                        net.minecraft.sounds.SoundEvents.ITEM_PICKUP,
+                        net.minecraft.sounds.SoundSource.PLAYERS,
+                        0.25f, 1.10f);
             } else {
-                player.displayClientMessage(
-                        Component.literal("Item não encontrado na rede/almoxarifado conectado."),
-                        true
-                );
+                player.displayClientMessage(Component.literal("Item não encontrado (ou fora de alcance da rede)."), true);
             }
         });
         ctx.get().setPacketHandled(true);

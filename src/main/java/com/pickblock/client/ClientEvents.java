@@ -1,10 +1,8 @@
 package com.pickblock.client;
 
-import com.pickblock.PickBlockMod;
 import com.pickblock.net.Network;
 import com.pickblock.net.RequestItemPacket;
 import net.minecraft.client.Minecraft;
-import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraftforge.common.MinecraftForge;
@@ -32,17 +30,13 @@ public class ClientEvents {
         wasPickDown = isDown;
 
         if (!pressedNow) return;
-        if (mc.player.isCreative()) return; // no criativo deixa o vanilla agir
+        if (mc.player.isCreative()) return;
 
-        // estamos no survival → tenta identificar o item do bloco mirado
         if (mc.hitResult instanceof BlockHitResult bhr) {
             var state = mc.level.getBlockState(bhr.getBlockPos());
             ItemStack targeted = state.getBlock().asItem().getDefaultInstance();
             if (!targeted.isEmpty()) {
-                // manda pro servidor: “tenta me dar esse item (stack cheio)”
                 Network.CHANNEL.sendToServer(new RequestItemPacket(targeted));
-                // dica: não cancelamos o comportamento vanilla — no survival o vanilla
-                // só pega se já tiver no inventário; nosso servidor vai completar a pilha.
             }
         }
     }

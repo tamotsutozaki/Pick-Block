@@ -6,12 +6,10 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.items.ItemHandlerHelper;
 
 public class InvUtil {
-    /** insere s na mão; se não der, tenta hotbar; se não der, inventário; se não couber, dropa no chão */
     public static void giveToHandOrHotbar(ServerPlayer p, ItemStack s) {
         if (s.isEmpty()) return;
         Inventory inv = p.getInventory();
 
-        // tentar completar mão principal
         int sel = inv.selected;
         ItemStack inHand = inv.getItem(sel);
         if (inHand.isEmpty()) {
@@ -28,7 +26,6 @@ public class InvUtil {
             }
         }
 
-        // tentar hotbar
         for (int i = 0; i < 9 && !s.isEmpty(); i++) {
             if (i == sel) continue;
             ItemStack slot = inv.getItem(i);
@@ -43,7 +40,6 @@ public class InvUtil {
             }
         }
 
-        // inventário geral
         if (!s.isEmpty()) {
             boolean added = p.addItem(s);
             if (!added) p.drop(s, false);
