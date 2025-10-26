@@ -1,0 +1,29 @@
+# Gradle
+.gradle/
+build/
+
+# IDE
+.out/
+*.iml
+.idea/caches/
+.idea/libraries/
+.idea/modules.xml
+.idea/workspace.xml
+.idea/gradle.xml
+.idea/**/dataSources/
+.idea/**/dataSources.local.xml
+
+# Ambiente dev Forge
+run/
+run-data/
+
+# SO
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Outras temporárias
+bin/
